@@ -2,12 +2,12 @@
   "@context": [
     "https://www.w3.org/2018/credentials/v1"
   ],
-  "id": "urn:uuid:31d3382f-03fa-4659-915d-7ba85aad8997",
+  "id": "urn:uuid:cc682cb7-4453-4188-9876-84aec34ecae0",
   "type": [
     "VerifiableCredential"
   ],
   "issuer": "did:ewc:0xc9Fc54b40453db70425D42f03521391D94e7B0b6",
-  "issuanceDate": "2023-12-17T05:45:56.148Z",
+  "issuanceDate": "2023-12-17T12:11:32.359Z",
   "credentialSubject": {
     "id": "did:ewc:0xc9Fc54b40453db70425D42f03521391D94e7B0b6",
     "meterData": {

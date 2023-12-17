@@ -18,10 +18,9 @@ const contractAddress = '0x05ECb2781C09b57d8C2eeA886f015D340FFcc993';
 const contract = new web3.eth.Contract(contractABI, contractAddress);
 
 // Mock smart contract interaction function
-const sendHashToContract = async (hash) => {
+const sendHashToContract = async (did, hash) => {
     // Simulate sending hash to the smart contract
-    console.log(`Hash sent to the contract: ${hash}`);
-    // interaction with the smart contract 
+    console.log(`DID: ${did} - hash sent to the contract: ${hash}`);
 }
 
 // Function to read meter data from CSV
@@ -54,24 +53,36 @@ async function readMeterData(meterId) {
 // Function to read meter DID from CSV
 async function readMeterDID(meterId) {
     return new Promise((resolve, reject) => {
-        fs.createReadStream(path.join(__dirname, 'data', 'meters.csv'))
-            .pipe(fastcsv.parse({ headers: true }))
-            .on('data', (row) => {
-                if (row["Meter ID"].trim() === meterId) {
-                    resolve(row["DID"]);
-                    this.destroy();
-                }
+        let data = '';
+        const stream = fs.createReadStream(path.join(__dirname, 'data', 'meters.csv'))
+            .on('data', (chunk) => {
+                data += chunk; // Accumulate data chunks
             })
             .on('end', () => {
-                console.log(`No DID found for Meter ID: ${meterId}`);
-                resolve(null);
+                try {
+                    // Parse the accumulated data
+                    const records = parse(data, { columns: true, skip_empty_lines: true });
+                    for (const row of records) {
+                        if (row["Meter ID"].trim() === meterId) {
+                            resolve(row["DID"]);
+                            return;
+                        }
+                    }
+                    console.log(`No DID found for Meter ID: ${meterId}`);
+                    resolve(null);
+                } catch (error) {
+                    console.error('Error parsing CSV data:', error.message);
+                    reject(error);
+                }
             })
             .on('error', (error) => {
-                console.error('Error reading DID CSV file:', error.message);
+                console.error('Error reading CSV file:', error.message);
                 reject(error);
             });
     });
 }
+
+
 
 // Function to generate a hash
 const generateHash = (data) => {
@@ -113,7 +124,7 @@ const processMeterData = async (meterId) => {
     if (meterData && meterDID) {
         const hash = generateHash(meterData);
         createAndStoreVC(meterData, meterDID, hash);
-        await storeHashInContract(meterDID, hash);
+        await sendHashToContract(meterDID, hash);
     } else {
         console.log('No data or DID found for the given meter ID.');
     }
@@ -137,8 +148,10 @@ const storeHashInContract = async (did, hash) => {
         });
 
         console.log(`Hash stored in contract: ${receipt.transactionHash}`);
+        rl.close();
     } catch (error) {
         console.error('Error storing hash in contract:', error);
+        rl.close();
     }
 };
 
@@ -157,3 +170,13 @@ const rl = readline.createInterface({
     console.log('Exiting the application...');
     process.exit(0);
   });
+  
+  module.exports = {
+    readMeterData,
+    readMeterDID,
+    generateHash,
+    createAndStoreVC,
+    processMeterData,
+    generatePrivateKeyFromDID,
+    storeHashInContract
+};
