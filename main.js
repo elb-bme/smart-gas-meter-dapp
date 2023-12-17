@@ -54,35 +54,44 @@ async function readMeterData(meterId) {
 async function readMeterDID(meterId) {
     return new Promise((resolve, reject) => {
         let data = '';
-        const stream = fs.createReadStream(path.join(__dirname, 'data', 'meters.csv'))
-            .on('data', (chunk) => {
-                data += chunk; // Accumulate data chunks
-            })
-            .on('end', () => {
-                try {
-                    // Parse the accumulated data
-                    const records = parse(data, { columns: true, skip_empty_lines: true });
-                    for (const row of records) {
-                        if (row["Meter ID"].trim() === meterId) {
-                            resolve(row["DID"]);
-                            return;
-                        }
+        const filePath = path.join(__dirname, 'data', 'meters.csv');
+        
+        // Check if the file exists
+        if (!fs.existsSync(filePath)) {
+            console.error(`File not found: ${filePath}`);
+            reject(new Error('File not found'));
+            return;
+        }
+
+        const stream = fs.createReadStream(filePath);
+        stream.on('data', (chunk) => {
+            data += chunk; // Accumulate data chunks
+        });
+
+        stream.on('end', () => {
+            try {
+                // Parse the accumulated data
+                const records = parse(data, { columns: true, skip_empty_lines: true });
+                for (const row of records) {
+                    if (row["Meter ID"].trim() === meterId) {
+                        resolve(row["DID"]);
+                        return;
                     }
-                    console.log(`No DID found for Meter ID: ${meterId}`);
-                    resolve(null);
-                } catch (error) {
-                    console.error('Error parsing CSV data:', error.message);
-                    reject(error);
                 }
-            })
-            .on('error', (error) => {
-                console.error('Error reading CSV file:', error.message);
+                console.log(`No DID found for Meter ID: ${meterId}`);
+                resolve(null);
+            } catch (error) {
+                console.error('Error parsing CSV data:', error.message);
                 reject(error);
-            });
+            }
+        });
+
+        stream.on('error', (error) => {
+            console.error('Error reading CSV file:', error.message);
+            reject(error);
+        });
     });
 }
-
-
 
 // Function to generate a hash
 const generateHash = (data) => {
@@ -170,7 +179,7 @@ const rl = readline.createInterface({
     console.log('Exiting the application...');
     process.exit(0);
   });
-  
+
   module.exports = {
     readMeterData,
     readMeterDID,
