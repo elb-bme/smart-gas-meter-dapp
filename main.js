@@ -8,8 +8,13 @@ const { Web3 } = require('web3');
 
 require('dotenv').config();
 
+// Contract ABI
+const contractABI = [ [ { "inputs": [], "stateMutability": "nonpayable", "type": "constructor" }, { "anonymous": false, "inputs": [ { "indexed": false, "internalType": "string", "name": "meterDID", "type": "string" }, { "indexed": false, "internalType": "uint256", "name": "index", "type": "uint256" } ], "name": "HashRevoked", "type": "event" }, { "anonymous": false, "inputs": [ { "indexed": false, "internalType": "string", "name": "meterDID", "type": "string" }, { "indexed": false, "internalType": "string", "name": "dataHash", "type": "string" } ], "name": "HashStored", "type": "event" }, { "anonymous": false, "inputs": [ { "indexed": false, "internalType": "string", "name": "meterDID", "type": "string" }, { "indexed": false, "internalType": "uint256", "name": "index", "type": "uint256" }, { "indexed": false, "internalType": "string", "name": "newDataHash", "type": "string" } ], "name": "HashUpdated", "type": "event" }, { "inputs": [ { "internalType": "string", "name": "meterDID", "type": "string" } ], "name": "getHashes", "outputs": [ { "internalType": "string[]", "name": "", "type": "string[]" } ], "stateMutability": "view", "type": "function" }, { "inputs": [ { "internalType": "string", "name": "meterDID", "type": "string" }, { "internalType": "uint256", "name": "index", "type": "uint256" } ], "name": "revokeHash", "outputs": [], "stateMutability": "nonpayable", "type": "function" }, { "inputs": [ { "internalType": "string", "name": "meterDID", "type": "string" }, { "internalType": "string", "name": "dataHash", "type": "string" } ], "name": "storeHash", "outputs": [], "stateMutability": "nonpayable", "type": "function" }, { "inputs": [ { "internalType": "string", "name": "meterDID", "type": "string" }, { "internalType": "uint256", "name": "index", "type": "uint256" }, { "internalType": "string", "name": "newDataHash", "type": "string" } ], "name": "updateHash", "outputs": [], "stateMutability": "nonpayable", "type": "function" } ]];
+
 // Configure Web3 instance for Volta Testnet
 const web3 = new Web3('https://volta-rpc.energyweb.org');
+const contractAddress = '0x05ECb2781C09b57d8C2eeA886f015D340FFcc993';
+const contract = new web3.eth.Contract(contractABI, contractAddress);
 
 // Mock smart contract interaction function
 const sendHashToContract = async (hash) => {
@@ -21,31 +26,48 @@ const sendHashToContract = async (hash) => {
 // Function to read meter data from CSV
 function readMeterData(meterId, callback) {
     console.log(`Reading meter data for ID: ${meterId}`);
-    let found = false; // Variable to indicate if the matching record was found
-    fs.createReadStream(path.join(__dirname, 'data', 'meter_data.csv'))
-        .pipe(fastcsv.parse({ headers: true }))
-        .on('data', (row) => {
-            if (row["Meter ID"].trim() === meterId) { // Trim to remove whitespace
-                found = true; // Set found to true when found the record
-                callback(row);
-                this.destroy(); // Stop reading the CSV file
-            }
-        })
-        .on('end', () => {
-            if (!found) {
-                console.log(`No data found for Meter ID: ${meterId}`);
-                callback(null); // Call the callback with null to indicate no data found
-            }
-        })
-        .on('error', (error) => {
-            console.error('Error reading CSV file:', error.message);
-            callback(null); // Call the callback with null due to the error
-        });
+    let found = false;
+    const stream = fs.createReadStream(path.join(__dirname, 'data', 'meter_data.csv'))
+      .pipe(fastcsv.parse({ headers: true }))
+      .on('data', (row) => {
+        if (row["Meter ID"].trim() === meterId) {
+          found = true;
+          callback(row);
+          stream.destroy(); // Correctly destroy the stream
+        }
+      })
+      .on('end', () => {
+        if (!found) {
+          console.log(`No data found for Meter ID: ${meterId}`);
+          callback(null);
+        }
+      })
+      .on('error', (error) => {
+        console.error('Error reading CSV file:', error.message);
+        callback(null);
+      });
 }
 
-// Function to generate a mock DID
-const generateDID = () => {
-    return `did:ewc:${uuidv4()}`;
+// Function to read meter DID from CSV
+async function readMeterDID(meterId) {
+    return new Promise((resolve, reject) => {
+        fs.createReadStream(path.join(__dirname, 'data', 'meters.csv'))
+            .pipe(fastcsv.parse({ headers: true }))
+            .on('data', (row) => {
+                if (row["Meter ID"].trim() === meterId) {
+                    resolve(row["DID"]);
+                    this.destroy();
+                }
+            })
+            .on('end', () => {
+                console.log(`No DID found for Meter ID: ${meterId}`);
+                resolve(null);
+            })
+            .on('error', (error) => {
+                console.error('Error reading DID CSV file:', error.message);
+                reject(error);
+            });
+    });
 }
 
 // Function to generate a hash
@@ -55,6 +77,7 @@ const generateHash = (data) => {
 
 // Function to create and store a VC
 const createAndStoreVC = (data, did, hash) => {
+    const sanitizedDid = did.replace(/[:]/g, '_'); // Replace colons with underscores
     const vc = {
         '@context': ['https://www.w3.org/2018/credentials/v1'],
         id: `urn:uuid:${uuidv4()}`,
@@ -69,34 +92,54 @@ const createAndStoreVC = (data, did, hash) => {
     };
 
     try {
-        if (!fs.existsSync('vcs')){
+        if (!fs.existsSync('vcs')) {
             fs.mkdirSync('vcs');
         }
-        fs.writeFileSync(`vcs/${did}.json`, JSON.stringify(vc, null, 2));
-        console.log(`VC for DID: ${did} written to file.`);
+        fs.writeFileSync(`vcs/${sanitizedDid}.json`, JSON.stringify(vc, null, 2));
+        console.log(`VC for DID: ${sanitizedDid} written to file.`);
     } catch (error) {
         console.error('Error writing VC to file:', error);
     }
 };
 
 // Main function to process meter data
-const processMeterData = (meterId) => {
-    readMeterData(meterId, (data) => {
-        if (data.length > 0) {
-            console.log(`Processing data for Meter ID: ${meterId}`);
-            const did = generateDID();
-            data.forEach(record => {
-                const hash = generateHash(record);
-                createAndStoreVC(record, did, hash);
-                sendHashToContract(hash);
-            });
-            rl.close(); // Close the readline interface after processing
-        } else {
-            console.log('No data found for the given meter ID.');
-            rl.close(); // Close the readline interface if no data found
-        }
-    });
-}
+const processMeterData = async (meterId) => {
+    const meterData = await readMeterData(meterId);
+    const meterDID = await readMeterDID(meterId);
+
+    if (meterData && meterDID) {
+        const hash = generateHash(meterData);
+        createAndStoreVC(meterData, meterDID, hash);
+        await storeHashInContract(meterDID, hash);
+    } else {
+        console.log('No data or DID found for the given meter ID.');
+    }
+};
+
+// Simulated function to generate a private key from a DID
+const generatePrivateKeyFromDID = (did) => {
+    // Simulate private key generation (this is not standard practice)
+    // For example, you could hash the DID and use it as a private key
+    return crypto.createHash('sha256').update(did).digest('hex');
+};
+
+// Function to store hash in the smart contract
+const storeHashInContract = async (did, hash) => {
+    try {
+        const privateKey = generatePrivateKeyFromDID(did);
+        const account = web3.eth.accounts.privateKeyToAccount('0x' + privateKey);
+        web3.eth.accounts.wallet.add(account);
+
+        const receipt = await contract.methods.storeHash(did, hash).send({
+            from: account.address,
+            gas: 1000000
+        });
+
+        console.log(`Hash stored in contract: ${receipt.transactionHash}`);
+    } catch (error) {
+        console.error('Error storing hash in contract:', error);
+    }
+};
 
 // Create readline interface for input/output
 const rl = readline.createInterface({
@@ -105,7 +148,7 @@ const rl = readline.createInterface({
   });
   
   // Prompt user for Meter ID
-  rl.question('Enter the Meter ID: ', (meterId) => {
+  rl.question('Enter meter ID: ', (meterId) => {
     processMeterData(meterId);
   });
   

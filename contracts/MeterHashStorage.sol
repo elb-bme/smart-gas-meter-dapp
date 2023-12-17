@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 /**
  * @title MeterHashStorage
  * @dev Manages the storage, update, and retrieval of meter data hashes.
+ * @custom:dev-run-script file_path
  */
 contract MeterHashStorage {
     constructor(){}
@@ -45,14 +46,18 @@ contract MeterHashStorage {
      * @param index Index of the hash in the array to revoke.
      */
     function revokeHash(string calldata meterDID, uint index) external {
-        require(index < meterHashes[meterDID].length, "Index out of bounds");
-        uint lastIndex = meterHashes[meterDID].length - 1;
-        if (index != lastIndex) {
-            meterHashes[meterDID][index] = meterHashes[meterDID][lastIndex];
-        }
-        meterHashes[meterDID].pop();
-        emit HashRevoked(meterDID, index);
+    require(index < meterHashes[meterDID].length, "Index out of bounds");
+    uint lastIndex = meterHashes[meterDID].length - 1;
+    
+    // Remove the element at the specified index by shifting all elements down by one.
+    for (uint i = index; i < lastIndex; i++) {
+        meterHashes[meterDID][i] = meterHashes[meterDID][i + 1];
     }
+    
+    // Pop the last element which is now a duplicate after shifting
+    meterHashes[meterDID].pop();
+    emit HashRevoked(meterDID, index);
+}
 
     /**
      * @dev Retrieve all stored hashes for a given meter DID.
