@@ -3,13 +3,8 @@ const { parse } = require('csv-parse/sync');
 const path = require('path');
 const { Web3 } = require('web3');
 const {
-    readMeterData,
-    readMeterDID,
     generateHash,
     createAndStoreVC,
-    processMeterData,
-    generatePrivateKeyFromDID,
-    storeHashInContract
 } = require('./main');
 jest.mock('fs');
 jest.mock('web3');
