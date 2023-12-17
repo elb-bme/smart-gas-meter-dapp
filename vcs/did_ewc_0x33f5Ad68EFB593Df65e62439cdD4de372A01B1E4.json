@@ -1,0 +1,21 @@
+{
+  "@context": [
+    "https://www.w3.org/2018/credentials/v1"
+  ],
+  "id": "urn:uuid:3e3f4d5f-b6d5-4d70-a4e3-5029892f9113",
+  "type": [
+    "VerifiableCredential"
+  ],
+  "issuer": "did:ewc:0x33f5Ad68EFB593Df65e62439cdD4de372A01B1E4",
+  "issuanceDate": "2023-12-17T05:39:13.990Z",
+  "credentialSubject": {
+    "id": "did:ewc:0x33f5Ad68EFB593Df65e62439cdD4de372A01B1E4",
+    "meterData": {
+      "Meter ID": "1002",
+      " Timestamp": " 2022-12-01T13:00:00",
+      " Counter": " 2600",
+      " Consumption": " 16.2"
+    },
+    "hash": "4453452f8e39c373651743b66ab6585eb7166bbd7a01da122e9e0133720cf188"
+  }
+}

@@ -1,5 +1,6 @@
 const readline = require('readline');
 const fs = require('fs');
+const { parse } = require('csv-parse/sync');
 const path = require('path');
 const crypto = require('crypto');
 const fastcsv = require('fast-csv');
@@ -24,28 +25,30 @@ const sendHashToContract = async (hash) => {
 }
 
 // Function to read meter data from CSV
-function readMeterData(meterId, callback) {
-    console.log(`Reading meter data for ID: ${meterId}`);
-    let found = false;
-    const stream = fs.createReadStream(path.join(__dirname, 'data', 'meter_data.csv'))
-      .pipe(fastcsv.parse({ headers: true }))
-      .on('data', (row) => {
-        if (row["Meter ID"].trim() === meterId) {
-          found = true;
-          callback(row);
-          stream.destroy(); // Correctly destroy the stream
-        }
-      })
-      .on('end', () => {
-        if (!found) {
-          console.log(`No data found for Meter ID: ${meterId}`);
-          callback(null);
-        }
-      })
-      .on('error', (error) => {
-        console.error('Error reading CSV file:', error.message);
-        callback(null);
-      });
+async function readMeterData(meterId) {
+    return new Promise((resolve, reject) => {
+        fs.readFile(path.join(__dirname, 'data', 'meter_data.csv'), (err, data) => {
+            if (err) {
+                reject(err);
+                return;
+            }
+
+            const records = parse(data, {
+                columns: true,
+                skip_empty_lines: true
+            });
+
+            for (let row of records) {
+                if (row && row["Meter ID"].trim() === meterId) {
+                    resolve(row);
+                    return;
+                }
+            }
+
+            console.log(`No data found for Meter ID: ${meterId}`);
+            resolve(null);
+        });
+    });
 }
 
 // Function to read meter DID from CSV
@@ -118,8 +121,6 @@ const processMeterData = async (meterId) => {
 
 // Simulated function to generate a private key from a DID
 const generatePrivateKeyFromDID = (did) => {
-    // Simulate private key generation (this is not standard practice)
-    // For example, you could hash the DID and use it as a private key
     return crypto.createHash('sha256').update(did).digest('hex');
 };
 
